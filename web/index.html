@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Village Energy Coordinator | Microgrid Simulation & DB Dashboard</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Top Navigation Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <div class="logo-box">
+                <i class="fa-solid fa-solar-panel logo-icon"></i>
+            </div>
+            <div>
+                <h1 class="app-title">Village Energy Coordinator</h1>
+                <p class="app-subtitle">Renewable Microgrid Priority Allocation & Database System</p>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <!-- Database Connection Pill -->
+            <div id="dbStatusBadge" class="db-pill" title="Click to view database details" onclick="openDbModal()">
+                <span class="db-dot dot-yellow"></span>
+                <i class="fa-solid fa-database"></i>
+                <span id="dbNameText">Checking DB...</span>
+            </div>
+
+            <!-- XAMPP MySQL Quick Reconnect -->
+            <button class="btn btn-outline-sm" id="btnReconnectDb" onclick="reconnectMySQL()" title="Attempt connection to XAMPP MySQL">
+                <i class="fa-solid fa-rotate"></i> Sync XAMPP
+            </button>
+
+            <!-- Theme Toggle -->
+            <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Light/Dark Theme">
+                <i class="fa-solid fa-moon" id="themeIcon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-container">
+
+        <!-- Top Control Bar -->
+        <section class="control-banner glass-panel">
+            <div class="scenario-controls">
+                <label class="control-label"><i class="fa-solid fa-sliders"></i> Simulation Preset:</label>
+                <div class="preset-group">
+                    <button class="btn btn-preset active" data-preset="standard" onclick="loadPreset('standard', this)">
+                        <i class="fa-solid fa-sun text-yellow"></i> Standard Sunny Day
+                    </button>
+                    <button class="btn btn-preset" data-preset="monsoon" onclick="loadPreset('monsoon', this)">
+                        <i class="fa-solid fa-cloud-rain text-blue"></i> Monsoon / Low Solar
+                    </button>
+                    <button class="btn btn-preset" data-preset="high_demand" onclick="loadPreset('high_demand', this)">
+                        <i class="fa-solid fa-fire text-orange"></i> Peak Summer Demand
+                    </button>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="simulateAllHours()">
+                    <i class="fa-solid fa-play"></i> Simulate All 24h
+                </button>
+                <button class="btn btn-secondary" onclick="openBatteryModal()" id="btnOpenBatteryModal" title="Configure Battery Storage System">
+                    <i class="fa-solid fa-car-battery text-purple"></i> Battery (<span id="btnBatteryCapLabel">200 kWh</span>)
+                </button>
+                <button class="btn btn-secondary" onclick="openAddLoadModal()">
+                    <i class="fa-solid fa-plus-circle"></i> Add Load
+                </button>
+                <button class="btn btn-secondary" onclick="openSetGenModal()">
+                    <i class="fa-solid fa-bolt"></i> Set Generation
+                </button>
+                <button class="btn btn-accent" onclick="openDbModal()">
+                    <i class="fa-solid fa-table"></i> View DB Records
+                </button>
+                <button class="btn btn-danger-sm" onclick="resetSimulation()">
+                    <i class="fa-solid fa-trash-can"></i> Reset
+                </button>
+            </div>
+        </section>
+
+        <!-- KPI Metrics Ribbon -->
+        <section class="kpi-grid">
+            <div class="kpi-card glass-panel kpi-gen">
+                <div class="kpi-icon-wrapper">
+                    <i class="fa-solid fa-solar-panel"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="kpi-title">Total Generation</span>
+                    <div class="kpi-value-row">
+                        <span class="kpi-value" id="kpiTotalGen">0.00</span>
+                        <span class="kpi-unit">kWh</span>
+                    </div>
+                    <span class="kpi-hint"><i class="fa-solid fa-wind"></i> Solar + Wind microgrid</span>
+                </div>
+            </div>
+
+            <div class="kpi-card glass-panel kpi-alloc">
+                <div class="kpi-icon-wrapper">
+                    <i class="fa-solid fa-plug-circle-check"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="kpi-title">Total Allocated</span>
+                    <div class="kpi-value-row">
+                        <span class="kpi-value" id="kpiTotalAlloc">0.00</span>
+                        <span class="kpi-unit">kWh</span>
+                    </div>
+                    <span class="kpi-hint text-green" id="kpiSatisfaction"><i class="fa-solid fa-chart-pie"></i> 0% satisfaction</span>
+                </div>
+            </div>
+
+            <div class="kpi-card glass-panel kpi-unmet">
+                <div class="kpi-icon-wrapper">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="kpi-title">Unmet Demand (Deficit)</span>
+                    <div class="kpi-value-row">
+                        <span class="kpi-value" id="kpiTotalUnmet">0.00</span>
+                        <span class="kpi-unit">kWh</span>
+                    </div>
+                    <span class="kpi-hint text-red"><i class="fa-solid fa-shield-halved"></i> Deferred or shed loads</span>
+                </div>
+            </div>
+
+            <div class="kpi-card glass-panel kpi-curt">
+                <div class="kpi-icon-wrapper">
+                    <i class="fa-solid fa-battery-half"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="kpi-title">Curtailed Energy (Surplus)</span>
+                    <div class="kpi-value-row">
+                        <span class="kpi-value" id="kpiTotalCurt">0.00</span>
+                        <span class="kpi-unit">kWh</span>
+                    </div>
+                    <span class="kpi-hint text-yellow"><i class="fa-solid fa-sun"></i> Spilled / unabsorbed solar</span>
+                </div>
+            </div>
+
+            <div class="kpi-card glass-panel kpi-battery" onclick="openBatteryModal()" style="cursor: pointer;" title="Click to configure Battery Storage">
+                <div class="kpi-icon-wrapper">
+                    <i class="fa-solid fa-car-battery"></i>
+                </div>
+                <div class="kpi-content" style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="kpi-title">Battery Storage (BESS)</span>
+                        <span class="badge badge-battery" id="kpiBatPercentBadge">20% SoC</span>
+                    </div>
+                    <div class="kpi-value-row">
+                        <span class="kpi-value" id="kpiBatterySoC">40.0</span>
+                        <span class="kpi-unit">/ <span id="kpiBatteryCap">200</span> kWh</span>
+                    </div>
+                    <div class="battery-kpi-bar-wrap">
+                        <div class="battery-kpi-bar-fill" id="kpiBatBarFill" style="width: 20%;"></div>
+                    </div>
+                    <span class="kpi-hint text-purple" id="kpiBatFlowHint">
+                        <i class="fa-solid fa-bolt"></i> +0.0 kWh in | -0.0 kWh out
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Grid -->
+        <section class="charts-grid">
+            <div class="chart-card glass-panel chart-main">
+                <div class="chart-header">
+                    <div>
+                        <h2 class="chart-title"><i class="fa-solid fa-chart-line"></i> 24-Hour Energy Balance & Dispatch</h2>
+                        <p class="chart-subtitle">Generation vs Allocated vs Unmet vs Curtailed across the full day</p>
+                    </div>
+                    <div class="chart-badges">
+                        <span class="badge badge-gen">Generation</span>
+                        <span class="badge badge-alloc">Allocated</span>
+                        <span class="badge badge-unmet">Unmet</span>
+                        <span class="badge badge-curt">Curtailed</span>
+                        <span class="badge badge-battery">Battery SoC</span>
+                    </div>
+                </div>
+                <div class="chart-canvas-container">
+                    <canvas id="energyProfileChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card glass-panel chart-side">
+                <div class="chart-header">
+                    <div>
+                        <h2 class="chart-title"><i class="fa-solid fa-chart-pie"></i> Load Priority Mix</h2>
+                        <p class="chart-subtitle">Critical vs Essential vs Deferrable energy breakdown</p>
+                    </div>
+                </div>
+                <div class="chart-canvas-container doughnut-wrap">
+                    <canvas id="priorityDoughnutChart"></canvas>
+                </div>
+                <div class="priority-legend">
+                    <div class="p-item"><span class="p-dot dot-critical"></span><strong>CRITICAL (L3):</strong> Clinics, ICU</div>
+                    <div class="p-item"><span class="p-dot dot-essential"></span><strong>ESSENTIAL (L2):</strong> Water pumps, Schools</div>
+                    <div class="p-item"><span class="p-dot dot-deferrable"></span><strong>DEFERRABLE (L1):</strong> Homes, Mills</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Hourly Simulator & Schedule -->
+        <section class="timeline-section glass-panel">
+            <div class="timeline-header">
+                <div>
+                    <h2 class="section-title"><i class="fa-solid fa-clock"></i> 24-Hour Simulation Matrix</h2>
+                    <p class="section-subtitle">Inspect consumer demands, priority orders, and allocate energy hour by hour</p>
+                </div>
+                <div class="timeline-filter">
+                    <label>Quick Jump Hour: </label>
+                    <select id="hourJumpSelect" onchange="jumpToHour(this.value)">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- Hour Cards Container -->
+            <div class="hour-cards-grid" id="hourCardsGrid">
+                <!-- Dynamically generated 24 hour cards -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal: Add Consumer Load -->
+    <div class="modal-overlay" id="addLoadModal">
+        <div class="modal-box glass-panel">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-plus-circle"></i> Add Consumer Load Request</h3>
+                <button class="modal-close" onclick="closeModal('addLoadModal')">&times;</button>
+            </div>
+            <form id="addLoadForm" onsubmit="submitAddLoad(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Target Hour (0 - 23):</label>
+                        <input type="number" id="loadHour" min="0" max="23" value="12" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Load Name:</label>
+                        <input type="text" id="loadName" placeholder="e.g. Village Cold Storage" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Load Type:</label>
+                        <select id="loadType" onchange="toggleMinReqField(this.value)">
+                            <option value="DIVISIBLE">Divisible Load (Proportional Energy)</option>
+                            <option value="MINIMUM_SERVICE">Minimum Service Load (All-or-Nothing / Threshold)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority Class:</label>
+                        <select id="loadPriority">
+                            <option value="CRITICAL">Level 3 - CRITICAL (Primary Clinic, Refrigeration)</option>
+                            <option value="ESSENTIAL" selected>Level 2 - ESSENTIAL (Water Pump, Schools)</option>
+                            <option value="DEFERRABLE">Level 1 - DEFERRABLE (Household, Mills)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Total Demand (kWh):</label>
+                        <input type="number" id="loadDemand" step="0.1" min="0.1" placeholder="e.g. 25.0" required>
+                    </div>
+                    <div class="form-group" id="minReqGroup" style="display: none;">
+                        <label>Minimum Required Energy (kWh):</label>
+                        <input type="number" id="loadMinRequired" step="0.1" min="0" placeholder="e.g. 15.0">
+                        <small class="hint-text">If available energy is less than this, 0 kWh will be allocated.</small>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addLoadModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save"></i> Save Load to Database</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Set Hourly Generation -->
+    <div class="modal-overlay" id="setGenModal">
+        <div class="modal-box glass-panel">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-bolt"></i> Set Generation (Solar + Wind)</h3>
+                <button class="modal-close" onclick="closeModal('setGenModal')">&times;</button>
+            </div>
+            <form id="setGenForm" onsubmit="submitSetGen(event)">
+                <div class="form-group">
+                    <label>Hour (0 - 23):</label>
+                    <input type="number" id="genHour" min="0" max="23" value="12" required>
+                </div>
+                <div class="form-group">
+                    <label>Available Generation (kWh):</label>
+                    <input type="number" id="genAmount" step="0.1" min="0" placeholder="e.g. 85.5" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('setGenModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Update Generation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Database Records Inspector -->
+    <div class="modal-overlay" id="dbModal">
+        <div class="modal-box modal-large glass-panel">
+            <div class="modal-header">
+                <div>
+                    <h3><i class="fa-solid fa-database text-yellow"></i> Live Database Inspector</h3>
+                    <p class="modal-subtitle" id="modalDbStatus">Status: SQLite / MySQL</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('dbModal')">&times;</button>
+            </div>
+
+            <div class="db-explain-banner">
+                <i class="fa-solid fa-circle-info"></i>
+                <div>
+                    <strong>How Database Connectivity Works in this Project:</strong>
+                    <p>All village generation data, consumer loads, and hourly allocation results are permanently recorded via JDBC. If XAMPP's MySQL server is started, it connects to MySQL (port 3306, user <code>root</code>). Otherwise, it uses embedded SQLite with zero setup!</p>
+                </div>
+            </div>
+
+            <!-- Database Table Switcher Tabs -->
+            <div class="db-tabs">
+                <button class="db-tab active" onclick="switchDbTable('simulation_results', this)">
+                    <i class="fa-solid fa-chart-simple"></i> simulation_results (<span id="countRes">0</span>)
+                </button>
+                <button class="db-tab" onclick="switchDbTable('consumer_loads', this)">
+                    <i class="fa-solid fa-users"></i> consumer_loads (<span id="countLoads">0</span>)
+                </button>
+                <button class="db-tab" onclick="switchDbTable('hourly_generation', this)">
+                    <i class="fa-solid fa-sun"></i> hourly_generation (<span id="countGen">0</span>)
+                </button>
+            </div>
+
+            <!-- Table Container -->
+            <div class="db-table-scroll">
+                <table class="db-table" id="dbRecordsTable">
+                    <thead id="dbTableHeader"></thead>
+                    <tbody id="dbTableBody">
+                        <tr><td colspan="6" class="text-center">Loading database records...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="modal-footer modal-footer-db">
+                <div class="xampp-guide">
+                    <span><i class="fa-solid fa-plug"></i> XAMPP MySQL tip: Open <strong>XAMPP Control Panel</strong> and click <strong>Start</strong> beside MySQL.</span>
+                </div>
+                <button class="btn btn-outline-sm" onclick="reconnectMySQL()"><i class="fa-solid fa-rotate"></i> Test / Connect MySQL</button>
+                <button class="btn btn-secondary" onclick="closeModal('dbModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Battery Configuration (BESS) -->
+    <div class="modal-overlay" id="batteryModal">
+        <div class="modal-box glass-panel">
+            <div class="modal-header">
+                <div>
+                    <h3><i class="fa-solid fa-car-battery text-purple"></i> Community Battery Storage (BESS)</h3>
+                    <p class="modal-subtitle">Configure battery bank capacity to bridge the day-night gap</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('batteryModal')">&times;</button>
+            </div>
+            <form id="batteryForm" onsubmit="submitSetBattery(event)">
+                <div class="db-explain-banner" style="background: rgba(168, 85, 247, 0.1); border-color: rgba(168, 85, 247, 0.3);">
+                    <i class="fa-solid fa-lightbulb text-purple"></i>
+                    <div>
+                        <strong>How Battery Solves the Village Problem:</strong>
+                        <p>At noon, surplus solar charges this battery bank. At night (after 6 PM) when solar drops to zero, the coordinator discharges stored energy to keep the Health Clinic and households powered!</p>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label>Quick Preset Capacities:</label>
+                    <div class="preset-group" style="margin-bottom: 0.5rem; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-preset" onclick="applyBatteryPreset(0, 0)">0 kWh (No Battery)</button>
+                        <button type="button" class="btn btn-preset" onclick="applyBatteryPreset(100, 20)">100 kWh (Small)</button>
+                        <button type="button" class="btn btn-preset active" id="btnPreset200" onclick="applyBatteryPreset(200, 40)">200 kWh (Standard)</button>
+                        <button type="button" class="btn btn-preset" onclick="applyBatteryPreset(350, 70)">350 kWh (Zero Deficit)</button>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Total Battery Capacity (kWh):</label>
+                        <input type="number" id="batteryCapacityInput" step="10" min="0" max="1000" value="200" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Initial Charge / SoC (kWh):</label>
+                        <input type="number" id="batterySoCInput" step="5" min="0" max="1000" value="40" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Inverter & Chemistry Specs:</label>
+                        <input type="text" value="LiFePO4 (92% Charge / 95% Discharge)" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Max Power Inverter Limit:</label>
+                        <input type="text" value="60 kW C-Rate Limit" disabled>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('batteryModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Apply & Re-simulate Day</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

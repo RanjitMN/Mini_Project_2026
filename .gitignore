@@ -1,0 +1,8 @@
+# Build outputs and local runtime data
+*.class
+*.db
+
+# IDE files
+.idea/
+*.iml
+.vscode/

@@ -7,6 +7,11 @@ public class IntervalAllocation {
     private double totalAllocated;
     private double unmetDemand;
     private double curtailedEnergy;
+
+    // Battery Energy Storage System (BESS) tracking
+    private double batteryCharged;
+    private double batteryDischarged;
+    private double batterySoC;  // State of Charge after this hour (kWh)
     
     // Store a copy of the loads and their allocation states for reporting
     private List<ConsumerLoad> loadsSnapshot;
@@ -53,11 +58,26 @@ public class IntervalAllocation {
         return loadsSnapshot;
     }
 
+    // --- Battery getters and setters ---
+    public double getBatteryCharged() { return batteryCharged; }
+    public void setBatteryCharged(double batteryCharged) { this.batteryCharged = batteryCharged; }
+
+    public double getBatteryDischarged() { return batteryDischarged; }
+    public void setBatteryDischarged(double batteryDischarged) { this.batteryDischarged = batteryDischarged; }
+
+    public double getBatterySoC() { return batterySoC; }
+    public void setBatterySoC(double batterySoC) { this.batterySoC = batterySoC; }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("Hour %02d: Generation: %.2f kWh | Allocated: %.2f kWh | Unmet: %.2f kWh | Curtailed: %.2f kWh%n",
+        sb.append(String.format("Hour %02d: Generation: %.2f kWh | Allocated: %.2f kWh | Unmet: %.2f kWh | Curtailed: %.2f kWh",
                 hour, totalGeneration, totalAllocated, unmetDemand, curtailedEnergy));
+        if (batteryCharged > 0 || batteryDischarged > 0) {
+            sb.append(String.format(" | Battery: +%.2f/-%.2f kWh (SoC: %.1f kWh)",
+                    batteryCharged, batteryDischarged, batterySoC));
+        }
+        sb.append(String.format("%n"));
         
         for (ConsumerLoad load : loadsSnapshot) {
             sb.append(String.format("  - %-25s : Demanded %.2f kWh, Allocated %.2f kWh%n",
